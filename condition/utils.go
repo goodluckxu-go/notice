@@ -3,9 +3,8 @@ package condition
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/goodluckxu-go/notice/code"
-	"strings"
+	"reflect"
 )
 
 func covertMetadata(metadata *code.Metadata, values ...any) (any, []any, error) {
@@ -168,200 +167,30 @@ func covertFloat64(val any) (float64, error) {
 	return 0, errors.New("unsupported float64")
 }
 
-func MarshalerCondition(condition Condition) ([]byte, error) {
-	if condition == nil {
-		return nil, nil
-	}
-	switch cond := condition.(type) {
-	case *Add:
-		var list []string
-		for _, item := range *cond {
-			buf, err := MarshalerCondition(item)
-			if err != nil {
-				return nil, err
-			}
-			list = append(list, string(buf))
-		}
-		return []byte(fmt.Sprintf(`{"type":"add","list":[` + strings.Join(list, ",") + `]}`)), nil
-	case *Or:
-		var list []string
-		for _, item := range *cond {
-			buf, err := MarshalerCondition(item)
-			if err != nil {
-				return nil, err
-			}
-			list = append(list, string(buf))
-		}
-		return []byte(fmt.Sprintf(`{"type":"or","list":[` + strings.Join(list, ",") + `]}`)), nil
-	case *Eq:
-		val := fmt.Sprintf("%v", cond.Value)
-		if _, ok := cond.Value.(string); ok {
-			val = `"` + val + `"`
-		}
-		return []byte(fmt.Sprintf(`{"type":"eq","field":"%v","value":%v}`, cond.Field, val)), nil
-	case *Neq:
-		val := fmt.Sprintf("%v", cond.Value)
-		if _, ok := cond.Value.(string); ok {
-			val = `"` + val + `"`
-		}
-		return []byte(fmt.Sprintf(`{"type":"neq","field":"%v","value":%v}`, cond.Field, val)), nil
-	case *Gt:
-		val := fmt.Sprintf("%v", cond.Value)
-		if _, ok := cond.Value.(string); ok {
-			val = `"` + val + `"`
-		}
-		return []byte(fmt.Sprintf(`{"type":"gt","field":"%v","value":%v}`, cond.Field, val)), nil
-	case *Gte:
-		val := fmt.Sprintf("%v", cond.Value)
-		if _, ok := cond.Value.(string); ok {
-			val = `"` + val + `"`
-		}
-		return []byte(fmt.Sprintf(`{"type":"gte","field":"%v","value":%v}`, cond.Field, val)), nil
-	case *Lt:
-		val := fmt.Sprintf("%v", cond.Value)
-		if _, ok := cond.Value.(string); ok {
-			val = `"` + val + `"`
-		}
-		return []byte(fmt.Sprintf(`{"type":"lt","field":"%v","value":%v}`, cond.Field, val)), nil
-	case *Lte:
-		val := fmt.Sprintf("%v", cond.Value)
-		if _, ok := cond.Value.(string); ok {
-			val = `"` + val + `"`
-		}
-		return []byte(fmt.Sprintf(`{"type":"lte","field":"%v","value":%v}`, cond.Field, val)), nil
-	case *In:
-		var list []string
-		for _, item := range cond.Value {
-			val := fmt.Sprintf("%v", item)
-			if _, ok := item.(string); ok {
-				val = `"` + val + `"`
-			}
-			list = append(list, val)
-		}
-		return []byte(fmt.Sprintf(`{"type":"in","field":"%v","list":[`+strings.Join(list, ",")+`]}`, cond.Field)), nil
-	case *NotIn:
-		var list []string
-		for _, item := range cond.Value {
-			val := fmt.Sprintf("%v", item)
-			if _, ok := item.(string); ok {
-				val = `"` + val + `"`
-			}
-			list = append(list, val)
-		}
-		return []byte(fmt.Sprintf(`{"type":"not_in","field":"%v","list":[`+strings.Join(list, ",")+`]}`, cond.Field)), nil
-	}
-	return nil, errors.New("unsupported marshaler condition")
-}
-
 func UnmarshalerCondition(data []byte, val *Condition) error {
 	if len(data) == 0 {
 		return nil
 	}
-	m := map[string]any{}
-	err := json.Unmarshal(data, &m)
+	var list []any
+	err := json.Unmarshal(data, &list)
 	if err != nil {
 		return err
 	}
-	return unmarshalerCondition(m, val)
+	return UnmarshalerConditionList(list, val)
 }
 
-func unmarshalerConditionMap(m map[string]any, val *Condition) error {
-	switch m["type"] {
-	case "add":
-		*val = &Add{}
-		return unmarshalerCondition(m["list"], val, "add")
-	case "or":
-		*val = &Or{}
-		return unmarshalerCondition(m["list"], val, "or")
-	case "eq":
-		*val = &Eq{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: m["value"],
-		}
-		return nil
-	case "neq":
-		*val = &Neq{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: m["value"],
-		}
-		return nil
-	case "gt":
-		*val = &Gt{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: m["value"],
-		}
-		return nil
-	case "gte":
-		*val = &Gte{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: m["value"],
-		}
-		return nil
-	case "lt":
-		*val = &Lt{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: m["value"],
-		}
-		return nil
-	case "lte":
-		*val = &Lte{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: m["value"],
-		}
-		return nil
-	case "in":
-		list, ok := m["list"].([]any)
-		if !ok {
-			return errors.New("invalid condition")
-		}
-		*val = &In{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: list,
-		}
-		return nil
-	case "not_in":
-		list, ok := m["list"].([]any)
-		if !ok {
-			return errors.New("invalid condition")
-		}
-		*val = &NotIn{
-			Field: fmt.Sprintf("%v", m["field"]),
-			Value: list,
-		}
+func UnmarshalerConditionList(list []any, val *Condition) error {
+	if len(list) == 0 {
 		return nil
 	}
-	return errors.New("unsupported unmarshaler condition")
-}
-
-func unmarshalerCondition(m any, val *Condition, tps ...string) error {
-	switch v := m.(type) {
-	case map[string]any:
-		return unmarshalerConditionMap(v, val)
-	case []any:
-		tp := ""
-		if len(tps) > 0 {
-			tp = tps[0]
-		}
-		if tp == "" {
-			return errors.New("unsupported unmarshaler condition")
-		}
-		list := make([]Condition, len(v))
-		for i, item := range v {
-			var itemVal Condition
-			if err := unmarshalerCondition(item, &itemVal); err != nil {
-				return err
-			}
-			list[i] = itemVal
-		}
-		switch tp {
-		case "add":
-			a := Add(list)
-			*val = &a
-		case "or":
-			o := Or(list)
-			*val = &o
-		}
-		return nil
+	sign, ok := list[0].(float64)
+	if !ok {
+		return errors.New("unsupported Condition")
 	}
-	return errors.New("unsupported unmarshaler condition")
+	vType := conditions.Search(Sign(sign))
+	if vType == nil {
+		return errors.New("unsupported Condition")
+	}
+	*val = reflect.New(vType).Interface().(Condition)
+	return (*val).Unmarshal(list)
 }

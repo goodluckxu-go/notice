@@ -2,6 +2,7 @@ package notice
 
 import (
 	"context"
+	"encoding/json"
 	pb "github.com/goodluckxu-go/notice/code"
 	cond "github.com/goodluckxu-go/notice/condition"
 	"google.golang.org/grpc"
@@ -31,7 +32,7 @@ func (c *NoticeClient) DelClient(id string) (err error) {
 
 func (c *NoticeClient) SendMessage(message []byte, idList []string, condition cond.Condition) (err error) {
 	var buf []byte
-	if buf, err = cond.MarshalerCondition(condition); err != nil {
+	if buf, err = json.Marshal(condition); err != nil {
 		return
 	}
 	_, err = c.client.SendMessage(context.Background(), &pb.SendReq{Server: &pb.ServerReq{Id: c.serverID},
