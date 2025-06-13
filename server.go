@@ -94,13 +94,13 @@ func (c *NoticeServer) heartbeat(serverID string, stream pb.Notice_RecvMessageSe
 	}
 }
 
-func Listen(addr string) error {
+func Listen(addr string, opts ...grpc.ServerOption) error {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
-	server := grpc.NewServer()
+	server := grpc.NewServer(opts...)
 	pb.RegisterNoticeServer(server, &NoticeServer{})
 	return server.Serve(listener)
 }

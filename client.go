@@ -62,8 +62,8 @@ func (c *NoticeClient) Close() {
 	_ = c.conn.Close()
 }
 
-func Dail(addr string) (*NoticeClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithInsecure(), grpc.WithBlock())
+func Dail(addr string, opts ...grpc.DialOption) (*NoticeClient, error) {
+	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, err
 	}
