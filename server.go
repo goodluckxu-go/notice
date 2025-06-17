@@ -20,7 +20,7 @@ func (c *NoticeServer) Register(ctx context.Context, req *pb.ServerReq) (*emptyp
 	if servers.IsRegistered(req.GetId()) {
 		return nil, errors.New("server is already registered")
 	}
-	servers.Add(req.GetId(), make(chan ServerChan))
+	servers.Add(req.GetId(), nil)
 	return nil, nil
 }
 
@@ -52,31 +52,24 @@ func (c *NoticeServer) SendMessage(ctx context.Context, req *pb.SendReq) (*empty
 	}
 	for _, client := range clientList {
 		if ser, ok := servers.Get(client.serverID); ok {
-			ser <- ServerChan{req.Message, client.id}
+			go ser.Send(&pb.RecvResp{
+				ClientID: client.id,
+				Message:  req.Message,
+			})
 		}
 	}
 	return nil, nil
 }
 
 func (c *NoticeServer) RecvMessage(req *pb.ServerReq, stream pb.Notice_RecvMessageServer) error {
-	var server chan ServerChan
-	var ok bool
-	if server, ok = servers.Get(req.GetId()); !ok {
+	if _, ok := servers.Get(req.GetId()); !ok {
 		return errors.New("server not found")
 	}
-	cls := make(chan struct{})
-	go c.heartbeat(req.GetId(), stream, cls)
-	for {
-		select {
-		case msg := <-server:
-			err := stream.Send(&pb.RecvResp{Message: msg.message, ClientID: msg.clientID})
-			if err != nil {
-				return err
-			}
-		case <-cls:
-			return nil
-		}
+	servers.Add(req.GetId(), stream)
+	select {
+	case <-stream.Context().Done():
 	}
+	return nil
 }
 
 func (c *NoticeServer) heartbeat(serverID string, stream pb.Notice_RecvMessageServer, close chan struct{}) {

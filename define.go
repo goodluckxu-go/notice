@@ -13,7 +13,7 @@ type ServerChan struct {
 }
 
 type Server struct {
-	m   map[string]chan ServerChan
+	m   map[string]code.Notice_RecvMessageServer
 	mux sync.Mutex
 }
 
@@ -24,7 +24,7 @@ func (s *Server) IsRegistered(id string) bool {
 	return ok
 }
 
-func (s *Server) Add(id string, server chan ServerChan) {
+func (s *Server) Add(id string, server code.Notice_RecvMessageServer) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	s.m[id] = server
@@ -37,12 +37,12 @@ func (s *Server) Del(id string) {
 	delete(s.m, id)
 }
 
-func (s *Server) Get(id string) (chan ServerChan, bool) {
+func (s *Server) Get(id string) (code.Notice_RecvMessageServer, bool) {
 	ser, ok := s.m[id]
 	return ser, ok
 }
 
-var servers = &Server{m: map[string]chan ServerChan{}}
+var servers = &Server{m: map[string]code.Notice_RecvMessageServer{}}
 
 type Client struct {
 	id       string
