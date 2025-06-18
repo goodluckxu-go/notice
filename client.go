@@ -37,7 +37,7 @@ func (c *NoticeClient) AddClient(id string, metadata map[string]any) (err error)
 	if err != nil {
 		return
 	}
-	_ = add.CloseSend()
+	_, _ = add.CloseAndRecv()
 	return
 }
 
@@ -103,7 +103,7 @@ func (c *NoticeClient) handleReady(isReady bool) {
 		}
 		_ = add.Send(&pb.ClientReq{No: uint32(c.no), Id: client.ID, Metadata: client.Metadata})
 	}
-	_ = add.CloseSend()
+	_, _ = add.CloseAndRecv()
 	c.readyRecv <- struct{}{}
 }
 

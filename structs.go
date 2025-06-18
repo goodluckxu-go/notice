@@ -22,23 +22,17 @@ type services struct {
 func (s *services) add(ser *service) (no uint32) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	for ; no < uint32(len(s.list)) && s.list[no] != nil; no++ {
-	}
-	if uint32(len(s.list)) == no {
-		s.list = append(s.list, ser)
-	} else {
-		s.list[no] = ser
-	}
-	return no
+	s.list = append(s.list, ser)
+	return uint32(len(s.list)) - 1
 }
 
 func (s *services) modify(no uint32, vals ...any) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	ser := s.list[no]
-	if ser == nil {
+	if no >= uint32(len(s.list)) {
 		return
 	}
+	ser := s.list[no]
 	for _, val := range vals {
 		switch v := val.(type) {
 		case code.Notice_RecvMessageServer:
@@ -54,24 +48,29 @@ func (s *services) exists(no uint32) bool {
 	if no >= uint32(len(s.list)) {
 		return false
 	}
-	return s.list[no] != nil
+	return true
 }
 
 func (s *services) get(no uint32) *service {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
+	if no >= uint32(len(s.list)) {
+		return nil
+	}
 	return s.list[no]
 }
 
 func (s *services) del(no uint32) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	ser := s.list[no]
-	if ser == nil {
+	if no >= uint32(len(s.list)) {
 		return
 	}
-	ser.close()
-	s.list[no] = nil
+	tmp := make([]*service, len(s.list)-1)
+	n := copy(tmp, s.list[:no])
+	copy(tmp[n:], s.list[no+1:])
+	s.list = tmp
+	cliList.DelService(no)
 }
 
 type Client struct {
@@ -88,19 +87,13 @@ type clients struct {
 func (c *clients) Add(cl *Client) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
-	var no = -1
-	for i, val := range c.list {
-		if val == nil {
-			no = i
-		} else if val.ID == cl.ID {
-			return fmt.Errorf("client %s already exists", cl.ID)
-		}
+	no := 0
+	for ; no < len(c.list) && c.list[no].ID != cl.ID; no++ {
 	}
-	if no == -1 {
-		c.list = append(c.list, cl)
-	} else {
-		c.list[no] = cl
+	if no < len(c.list) {
+		return fmt.Errorf("client %s already exists", cl.ID)
 	}
+	c.list = append(c.list, cl)
 	return nil
 }
 
@@ -113,19 +106,21 @@ func (c *clients) List() []*Client {
 func (c *clients) Del(id string) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
-	for i := 0; i < len(c.list); i++ {
-		if c.list[i] != nil && c.list[i].ID == id {
-			c.list[i] = nil
-		}
+	no := 0
+	for ; no < len(c.list) && c.list[no].ID != id; no++ {
+	}
+	if no < len(c.list) {
+		tmp := make([]*Client, len(c.list)-1)
+		n := copy(tmp, c.list[:no])
+		copy(tmp[n:], c.list[no+1:])
+		c.list = tmp
 	}
 }
 
 func (c *clients) DelService(no uint32) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
 	for _, cl := range c.list {
 		if cl.No == no {
-			c.list[no] = nil
+			c.Del(cl.ID)
 		}
 	}
 }
