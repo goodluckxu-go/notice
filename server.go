@@ -8,83 +8,78 @@ import (
 	"github.com/goodluckxu-go/notice/condition"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"io"
 	"net"
-	"time"
 )
 
 type NoticeServer struct {
 	pb.UnimplementedNoticeServer
 }
 
-func (c *NoticeServer) Register(ctx context.Context, req *pb.ServerReq) (*emptypb.Empty, error) {
-	if servers.IsRegistered(req.GetId()) {
-		return nil, errors.New("server is already registered")
-	}
-	servers.Add(req.GetId(), nil)
-	return nil, nil
+func (c *NoticeServer) Register(context.Context, *emptypb.Empty) (*pb.Number, error) {
+	no := serList.add(&service{})
+	return &pb.Number{No: no}, nil
 }
 
-func (c *NoticeServer) AddClient(ctx context.Context, req *pb.ClientReq) (*emptypb.Empty, error) {
-	if !servers.IsRegistered(req.GetServer().GetId()) {
-		return nil, errors.New("server not found")
+func (c *NoticeServer) AddClient(stream pb.Notice_AddClientServer) error {
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		if !serList.exists(req.No) {
+			return errors.New("server not found")
+		}
+		_ = cliList.Add(&Client{
+			No:       req.GetNo(),
+			ID:       req.GetId(),
+			Metadata: req.GetMetadata(),
+		})
 	}
-	err := clients.Add(req.GetId(), req.GetServer().GetId(), req.Metadata)
-	return nil, err
+	return nil
 }
 
 func (c *NoticeServer) DelClient(ctx context.Context, req *pb.ClientReq) (*emptypb.Empty, error) {
-	if !servers.IsRegistered(req.GetServer().GetId()) {
+	if !serList.exists(req.GetNo()) {
 		return nil, errors.New("server not found")
 	}
-	clients.Del(req.GetId(), req.GetServer().GetId())
+	cliList.Del(req.GetId())
 	return nil, nil
 }
 
 func (c *NoticeServer) SendMessage(ctx context.Context, req *pb.SendReq) (*emptypb.Empty, error) {
 	var cond condition.Condition
 	if err := condition.UnmarshalerCondition(req.Condition, &cond); err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
-	clientList, err := clients.Search(req.IdList, cond)
+	clientList, err := cliList.Search(req.IdList, cond)
 	if err != nil {
 		return nil, err
 	}
 	for _, client := range clientList {
-		if ser, ok := servers.Get(client.serverID); ok {
-			go ser.Send(&pb.RecvResp{
-				ClientID: client.id,
-				Message:  req.Message,
+		if ser := serList.get(client.No); ser != nil {
+			go ser.recv.Send(&pb.RecvResp{
+				Id:      client.ID,
+				Message: req.Message,
 			})
 		}
 	}
 	return nil, nil
 }
 
-func (c *NoticeServer) RecvMessage(req *pb.ServerReq, stream pb.Notice_RecvMessageServer) error {
-	if _, ok := servers.Get(req.GetId()); !ok {
-		return errors.New("server not found")
+func (c *NoticeServer) RecvMessage(req *pb.Number, stream pb.Notice_RecvMessageServer) error {
+	if !serList.exists(req.No) {
+		return fmt.Errorf("server not found")
 	}
-	servers.Add(req.GetId(), stream)
+	serList.modify(req.No, stream)
 	select {
 	case <-stream.Context().Done():
+		serList.del(req.No)
 	}
 	return nil
-}
-
-func (c *NoticeServer) heartbeat(serverID string, stream pb.Notice_RecvMessageServer, close chan struct{}) {
-	ticker := time.NewTicker(time.Second)
-	for {
-		select {
-		case <-ticker.C:
-			err := stream.Send(&pb.RecvResp{Heartbeat: true})
-			if err != nil {
-				servers.Del(serverID)
-				close <- struct{}{}
-				ticker.Stop()
-			}
-		}
-	}
 }
 
 func Listen(addr string, opts ...grpc.ServerOption) error {

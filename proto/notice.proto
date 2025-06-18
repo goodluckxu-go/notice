@@ -4,24 +4,24 @@ package grpc;
 option go_package = "./code";
 
 service Notice {
-  // 注册到服务器中
-  rpc Register(ServerReq) returns (google.protobuf.Empty) {}
+  // 注册到服务器中获取在服务器中的编号
+  rpc Register(google.protobuf.Empty) returns (Number) {}
   // 添加客户端
-  rpc AddClient(ClientReq) returns (google.protobuf.Empty) {}
+  rpc AddClient(stream ClientReq) returns (google.protobuf.Empty) {}
   // 删除客户端
   rpc DelClient(ClientReq) returns (google.protobuf.Empty) {}
   // 将消息发送到服务端
   rpc SendMessage(SendReq) returns (google.protobuf.Empty) {}
   // 接受服务端消息
-  rpc RecvMessage(ServerReq) returns (stream RecvResp) {}
+  rpc RecvMessage(Number) returns (stream RecvResp) {}
 }
 
-message ServerReq {
-  string id = 1;
+message Number {
+  uint32 no = 1;
 }
 
 message ClientReq{
-  ServerReq server = 1;
+  uint32 no = 1;
   string id = 2;
   map<string,Metadata> metadata = 3; // 元数据
 }
@@ -37,14 +37,13 @@ message Metadata {
 }
 
 message SendReq {
-  ServerReq server = 1;
+  uint32 no = 1;
   bytes message = 2; // 发送消息
   repeated string idList = 3; // 发送id集合
   bytes condition = 4; // 条件
 }
 
 message RecvResp {
-  string clientID = 1;
+  string id = 1;
   bytes message = 2;
-  bool heartbeat = 3;
 }

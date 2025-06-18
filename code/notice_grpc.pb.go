@@ -31,16 +31,16 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NoticeClient interface {
-	// 注册到服务器中
-	Register(ctx context.Context, in *ServerReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// 注册到服务器中获取在服务器中的编号
+	Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Number, error)
 	// 添加客户端
-	AddClient(ctx context.Context, in *ClientReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddClient(ctx context.Context, opts ...grpc.CallOption) (Notice_AddClientClient, error)
 	// 删除客户端
 	DelClient(ctx context.Context, in *ClientReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// 将消息发送到服务端
 	SendMessage(ctx context.Context, in *SendReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// 接受服务端消息
-	RecvMessage(ctx context.Context, in *ServerReq, opts ...grpc.CallOption) (Notice_RecvMessageClient, error)
+	RecvMessage(ctx context.Context, in *Number, opts ...grpc.CallOption) (Notice_RecvMessageClient, error)
 }
 
 type noticeClient struct {
@@ -51,9 +51,9 @@ func NewNoticeClient(cc grpc.ClientConnInterface) NoticeClient {
 	return &noticeClient{cc}
 }
 
-func (c *noticeClient) Register(ctx context.Context, in *ServerReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *noticeClient) Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Number, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(Number)
 	err := c.cc.Invoke(ctx, Notice_Register_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -61,14 +61,39 @@ func (c *noticeClient) Register(ctx context.Context, in *ServerReq, opts ...grpc
 	return out, nil
 }
 
-func (c *noticeClient) AddClient(ctx context.Context, in *ClientReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *noticeClient) AddClient(ctx context.Context, opts ...grpc.CallOption) (Notice_AddClientClient, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Notice_AddClient_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Notice_ServiceDesc.Streams[0], Notice_AddClient_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &noticeAddClientClient{ClientStream: stream}
+	return x, nil
+}
+
+type Notice_AddClientClient interface {
+	Send(*ClientReq) error
+	CloseAndRecv() (*emptypb.Empty, error)
+	grpc.ClientStream
+}
+
+type noticeAddClientClient struct {
+	grpc.ClientStream
+}
+
+func (x *noticeAddClientClient) Send(m *ClientReq) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *noticeAddClientClient) CloseAndRecv() (*emptypb.Empty, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(emptypb.Empty)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *noticeClient) DelClient(ctx context.Context, in *ClientReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
@@ -91,9 +116,9 @@ func (c *noticeClient) SendMessage(ctx context.Context, in *SendReq, opts ...grp
 	return out, nil
 }
 
-func (c *noticeClient) RecvMessage(ctx context.Context, in *ServerReq, opts ...grpc.CallOption) (Notice_RecvMessageClient, error) {
+func (c *noticeClient) RecvMessage(ctx context.Context, in *Number, opts ...grpc.CallOption) (Notice_RecvMessageClient, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Notice_ServiceDesc.Streams[0], Notice_RecvMessage_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Notice_ServiceDesc.Streams[1], Notice_RecvMessage_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,16 +153,16 @@ func (x *noticeRecvMessageClient) Recv() (*RecvResp, error) {
 // All implementations must embed UnimplementedNoticeServer
 // for forward compatibility
 type NoticeServer interface {
-	// 注册到服务器中
-	Register(context.Context, *ServerReq) (*emptypb.Empty, error)
+	// 注册到服务器中获取在服务器中的编号
+	Register(context.Context, *emptypb.Empty) (*Number, error)
 	// 添加客户端
-	AddClient(context.Context, *ClientReq) (*emptypb.Empty, error)
+	AddClient(Notice_AddClientServer) error
 	// 删除客户端
 	DelClient(context.Context, *ClientReq) (*emptypb.Empty, error)
 	// 将消息发送到服务端
 	SendMessage(context.Context, *SendReq) (*emptypb.Empty, error)
 	// 接受服务端消息
-	RecvMessage(*ServerReq, Notice_RecvMessageServer) error
+	RecvMessage(*Number, Notice_RecvMessageServer) error
 	mustEmbedUnimplementedNoticeServer()
 }
 
@@ -145,11 +170,11 @@ type NoticeServer interface {
 type UnimplementedNoticeServer struct {
 }
 
-func (UnimplementedNoticeServer) Register(context.Context, *ServerReq) (*emptypb.Empty, error) {
+func (UnimplementedNoticeServer) Register(context.Context, *emptypb.Empty) (*Number, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
-func (UnimplementedNoticeServer) AddClient(context.Context, *ClientReq) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddClient not implemented")
+func (UnimplementedNoticeServer) AddClient(Notice_AddClientServer) error {
+	return status.Errorf(codes.Unimplemented, "method AddClient not implemented")
 }
 func (UnimplementedNoticeServer) DelClient(context.Context, *ClientReq) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DelClient not implemented")
@@ -157,7 +182,7 @@ func (UnimplementedNoticeServer) DelClient(context.Context, *ClientReq) (*emptyp
 func (UnimplementedNoticeServer) SendMessage(context.Context, *SendReq) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
 }
-func (UnimplementedNoticeServer) RecvMessage(*ServerReq, Notice_RecvMessageServer) error {
+func (UnimplementedNoticeServer) RecvMessage(*Number, Notice_RecvMessageServer) error {
 	return status.Errorf(codes.Unimplemented, "method RecvMessage not implemented")
 }
 func (UnimplementedNoticeServer) mustEmbedUnimplementedNoticeServer() {}
@@ -174,7 +199,7 @@ func RegisterNoticeServer(s grpc.ServiceRegistrar, srv NoticeServer) {
 }
 
 func _Notice_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ServerReq)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -186,27 +211,35 @@ func _Notice_Register_Handler(srv interface{}, ctx context.Context, dec func(int
 		FullMethod: Notice_Register_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NoticeServer).Register(ctx, req.(*ServerReq))
+		return srv.(NoticeServer).Register(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Notice_AddClient_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClientReq)
-	if err := dec(in); err != nil {
+func _Notice_AddClient_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NoticeServer).AddClient(&noticeAddClientServer{ServerStream: stream})
+}
+
+type Notice_AddClientServer interface {
+	SendAndClose(*emptypb.Empty) error
+	Recv() (*ClientReq, error)
+	grpc.ServerStream
+}
+
+type noticeAddClientServer struct {
+	grpc.ServerStream
+}
+
+func (x *noticeAddClientServer) SendAndClose(m *emptypb.Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *noticeAddClientServer) Recv() (*ClientReq, error) {
+	m := new(ClientReq)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(NoticeServer).AddClient(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Notice_AddClient_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NoticeServer).AddClient(ctx, req.(*ClientReq))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 func _Notice_DelClient_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -246,7 +279,7 @@ func _Notice_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(
 }
 
 func _Notice_RecvMessage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ServerReq)
+	m := new(Number)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -278,10 +311,6 @@ var Notice_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Notice_Register_Handler,
 		},
 		{
-			MethodName: "AddClient",
-			Handler:    _Notice_AddClient_Handler,
-		},
-		{
 			MethodName: "DelClient",
 			Handler:    _Notice_DelClient_Handler,
 		},
@@ -291,6 +320,11 @@ var Notice_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "AddClient",
+			Handler:       _Notice_AddClient_Handler,
+			ClientStreams: true,
+		},
 		{
 			StreamName:    "RecvMessage",
 			Handler:       _Notice_RecvMessage_Handler,
