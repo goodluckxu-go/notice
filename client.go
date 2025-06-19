@@ -3,7 +3,6 @@ package notice
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	pb "github.com/goodluckxu-go/notice/code"
 	cond "github.com/goodluckxu-go/notice/condition"
 	"google.golang.org/grpc"
@@ -12,8 +11,7 @@ import (
 )
 
 type NoticeClient struct {
-	serverID  string
-	no        int
+	serviceID string
 	conn      *grpc.ClientConn
 	client    pb.NoticeClient
 	readyRecv chan struct{}
@@ -24,7 +22,7 @@ func (c *NoticeClient) AddClient(id string, metadata map[string]any) (err error)
 	for k, v := range metadata {
 		mData[k] = toMetadata(v)
 	}
-	err = cliList.Add(&Client{ID: id, No: uint32(c.no), Metadata: mData})
+	err = cliList.Add(&Client{ID: id, ServiceID: c.serviceID, Metadata: mData})
 	if err != nil {
 		return
 	}
@@ -32,8 +30,7 @@ func (c *NoticeClient) AddClient(id string, metadata map[string]any) (err error)
 	if add, err = c.client.AddClient(context.Background()); err != nil {
 		return
 	}
-	err = add.Send(&pb.ClientReq{No: uint32(c.no),
-		Id: id, Metadata: mData})
+	err = add.Send(&pb.ClientReq{ServiceID: c.serviceID, Id: id, Metadata: mData})
 	if err != nil {
 		return
 	}
@@ -43,7 +40,7 @@ func (c *NoticeClient) AddClient(id string, metadata map[string]any) (err error)
 
 func (c *NoticeClient) DelClient(id string) (err error) {
 	cliList.Del(id)
-	_, err = c.client.DelClient(context.Background(), &pb.ClientReq{No: uint32(c.no), Id: id})
+	_, err = c.client.DelClient(context.Background(), &pb.ClientReq{ServiceID: c.serviceID, Id: id})
 	return
 }
 
@@ -52,7 +49,7 @@ func (c *NoticeClient) SendMessage(message []byte, idList []string, condition co
 	if buf, err = json.Marshal(condition); err != nil {
 		return
 	}
-	_, err = c.client.SendMessage(context.Background(), &pb.SendReq{No: uint32(c.no), Message: message,
+	_, err = c.client.SendMessage(context.Background(), &pb.SendReq{ServiceID: c.serviceID, Message: message,
 		IdList: idList, Condition: buf})
 	return
 }
@@ -61,17 +58,29 @@ func (c *NoticeClient) RecvMessage(cb func(id string, message []byte)) error {
 	for {
 		select {
 		case <-c.readyRecv:
-			steam, err := c.client.RecvMessage(context.Background(), &pb.Number{No: uint32(c.no)})
+			steam, err := c.client.RecvMessage(context.Background(), &pb.Service{ServiceID: c.serviceID})
 			if err != nil {
 				return err
 			}
-			var recv *pb.RecvResp
+		steamPos:
 			for {
-				recv, err = steam.Recv()
-				if err != nil {
-					break
+				select {
+				case <-steam.Context().Done():
+					break steamPos
+				default:
+					var recv *pb.RecvResp
+					for {
+						recv, err = steam.Recv()
+						if err != nil {
+							break steamPos
+						}
+						go func(recv *pb.RecvResp) {
+							for _, id := range recv.IdList {
+								cb(id, recv.Message)
+							}
+						}(recv)
+					}
 				}
-				cb(recv.Id, recv.Message)
 			}
 		case <-time.After(10 * time.Millisecond):
 		}
@@ -87,11 +96,11 @@ func (c *NoticeClient) handleReady(isReady bool) {
 		return
 	}
 	// 注册服务
-	numResp, err := c.client.Register(context.Background(), nil)
+	registerResp, err := c.client.Register(context.Background(), nil)
 	if err != nil {
 		return
 	}
-	c.no = int(numResp.No)
+	c.serviceID = registerResp.ServiceID
 	// 添加客户端
 	var add pb.Notice_AddClientClient
 	if add, err = c.client.AddClient(context.Background()); err != nil {
@@ -101,7 +110,7 @@ func (c *NoticeClient) handleReady(isReady bool) {
 		if client == nil {
 			continue
 		}
-		_ = add.Send(&pb.ClientReq{No: uint32(c.no), Id: client.ID, Metadata: client.Metadata})
+		_ = add.Send(&pb.ClientReq{ServiceID: c.serviceID, Id: client.ID, Metadata: client.Metadata})
 	}
 	_, _ = add.CloseAndRecv()
 	c.readyRecv <- struct{}{}
@@ -114,7 +123,6 @@ func (c *NoticeClient) checkStatus() {
 	for {
 		c.conn.WaitForStateChange(context.Background(), state)
 		state = c.conn.GetState()
-		fmt.Println("state:", state)
 		if state == connectivity.Idle {
 			c.conn.Connect()
 		} else if state == connectivity.Ready {
@@ -124,16 +132,12 @@ func (c *NoticeClient) checkStatus() {
 	}
 }
 
-func SetClient(client ClientInterface) {
-	cliList = client
-}
-
 func Dail(addr string, opts ...grpc.DialOption) (*NoticeClient, error) {
 	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, err
 	}
-	c := &NoticeClient{serverID: getUUID(), conn: conn, client: pb.NewNoticeClient(conn), readyRecv: make(chan struct{})}
+	c := &NoticeClient{conn: conn, client: pb.NewNoticeClient(conn), readyRecv: make(chan struct{})}
 	go c.checkStatus()
 	return c, nil
 }

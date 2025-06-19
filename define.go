@@ -1,4 +1,4 @@
 package notice
 
-var serList = &services{}
-var cliList ClientInterface = &clients{}
+var serList = &services{m: map[string]*service{}}
+var cliList = &clients{}

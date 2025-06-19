@@ -1,6 +1,7 @@
 package notice
 
 import (
+	"errors"
 	"fmt"
 	"github.com/goodluckxu-go/notice/code"
 	"github.com/goodluckxu-go/notice/condition"
@@ -15,68 +16,61 @@ func (s *service) close() {
 }
 
 type services struct {
-	list []*service
-	mux  sync.RWMutex
+	m   map[string]*service
+	mux sync.RWMutex
 }
 
-func (s *services) add(ser *service) (no uint32) {
+func (s *services) add(id string, ser *service) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	s.list = append(s.list, ser)
-	return uint32(len(s.list)) - 1
+	if _, ok := s.m[id]; ok {
+		return errors.New("service exists")
+	}
+	s.m[id] = ser
+	return nil
 }
 
-func (s *services) modify(no uint32, vals ...any) {
+func (s *services) modify(id string, vals ...any) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	if no >= uint32(len(s.list)) {
+	var ser *service
+	var ok bool
+	if ser, ok = s.m[id]; !ok {
 		return
 	}
-	ser := s.list[no]
 	for _, val := range vals {
 		switch v := val.(type) {
 		case code.Notice_RecvMessageServer:
 			ser.recv = v
 		}
 	}
-	s.list[no] = ser
+	s.m[id] = ser
 }
 
-func (s *services) exists(no uint32) bool {
+func (s *services) exists(id string) bool {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	if no >= uint32(len(s.list)) {
-		return false
-	}
-	return true
+	_, ok := s.m[id]
+	return ok
 }
 
-func (s *services) get(no uint32) *service {
+func (s *services) get(id string) *service {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	if no >= uint32(len(s.list)) {
-		return nil
-	}
-	return s.list[no]
+	return s.m[id]
 }
 
-func (s *services) del(no uint32) {
+func (s *services) del(id string) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	if no >= uint32(len(s.list)) {
-		return
-	}
-	tmp := make([]*service, len(s.list)-1)
-	n := copy(tmp, s.list[:no])
-	copy(tmp[n:], s.list[no+1:])
-	s.list = tmp
-	cliList.DelService(no)
+	delete(s.m, id)
+	cliList.DelService(id)
 }
 
 type Client struct {
-	ID       string
-	No       uint32
-	Metadata map[string]*code.Metadata
+	ID        string
+	ServiceID string
+	Metadata  map[string]*code.Metadata
 }
 
 type clients struct {
@@ -117,15 +111,16 @@ func (c *clients) Del(id string) {
 	}
 }
 
-func (c *clients) DelService(no uint32) {
+func (c *clients) DelService(serviceID string) {
 	for _, cl := range c.list {
-		if cl.No == no {
+		if cl.ServiceID == serviceID {
 			c.Del(cl.ID)
 		}
 	}
 }
 
-func (c *clients) Search(idList []string, condition condition.Condition) (rs []*Client, err error) {
+func (c *clients) Search(idList []string, condition condition.Condition) (rs map[string][]string, err error) {
+	rs = map[string][]string{}
 	for _, cl := range c.list {
 		if cl == nil {
 			continue
@@ -139,7 +134,7 @@ func (c *clients) Search(idList []string, condition condition.Condition) (rs []*
 				continue
 			}
 		}
-		rs = append(rs, cl)
+		rs[cl.ServiceID] = append(rs[cl.ServiceID], cl.ID)
 	}
 	return
 }

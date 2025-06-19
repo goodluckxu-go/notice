@@ -32,7 +32,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NoticeClient interface {
 	// 注册到服务器中获取在服务器中的编号
-	Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Number, error)
+	Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Service, error)
 	// 添加客户端
 	AddClient(ctx context.Context, opts ...grpc.CallOption) (Notice_AddClientClient, error)
 	// 删除客户端
@@ -40,7 +40,7 @@ type NoticeClient interface {
 	// 将消息发送到服务端
 	SendMessage(ctx context.Context, in *SendReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// 接受服务端消息
-	RecvMessage(ctx context.Context, in *Number, opts ...grpc.CallOption) (Notice_RecvMessageClient, error)
+	RecvMessage(ctx context.Context, in *Service, opts ...grpc.CallOption) (Notice_RecvMessageClient, error)
 }
 
 type noticeClient struct {
@@ -51,9 +51,9 @@ func NewNoticeClient(cc grpc.ClientConnInterface) NoticeClient {
 	return &noticeClient{cc}
 }
 
-func (c *noticeClient) Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Number, error) {
+func (c *noticeClient) Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Service, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Number)
+	out := new(Service)
 	err := c.cc.Invoke(ctx, Notice_Register_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (c *noticeClient) SendMessage(ctx context.Context, in *SendReq, opts ...grp
 	return out, nil
 }
 
-func (c *noticeClient) RecvMessage(ctx context.Context, in *Number, opts ...grpc.CallOption) (Notice_RecvMessageClient, error) {
+func (c *noticeClient) RecvMessage(ctx context.Context, in *Service, opts ...grpc.CallOption) (Notice_RecvMessageClient, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Notice_ServiceDesc.Streams[1], Notice_RecvMessage_FullMethodName, cOpts...)
 	if err != nil {
@@ -154,7 +154,7 @@ func (x *noticeRecvMessageClient) Recv() (*RecvResp, error) {
 // for forward compatibility
 type NoticeServer interface {
 	// 注册到服务器中获取在服务器中的编号
-	Register(context.Context, *emptypb.Empty) (*Number, error)
+	Register(context.Context, *emptypb.Empty) (*Service, error)
 	// 添加客户端
 	AddClient(Notice_AddClientServer) error
 	// 删除客户端
@@ -162,7 +162,7 @@ type NoticeServer interface {
 	// 将消息发送到服务端
 	SendMessage(context.Context, *SendReq) (*emptypb.Empty, error)
 	// 接受服务端消息
-	RecvMessage(*Number, Notice_RecvMessageServer) error
+	RecvMessage(*Service, Notice_RecvMessageServer) error
 	mustEmbedUnimplementedNoticeServer()
 }
 
@@ -170,7 +170,7 @@ type NoticeServer interface {
 type UnimplementedNoticeServer struct {
 }
 
-func (UnimplementedNoticeServer) Register(context.Context, *emptypb.Empty) (*Number, error) {
+func (UnimplementedNoticeServer) Register(context.Context, *emptypb.Empty) (*Service, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
 func (UnimplementedNoticeServer) AddClient(Notice_AddClientServer) error {
@@ -182,7 +182,7 @@ func (UnimplementedNoticeServer) DelClient(context.Context, *ClientReq) (*emptyp
 func (UnimplementedNoticeServer) SendMessage(context.Context, *SendReq) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
 }
-func (UnimplementedNoticeServer) RecvMessage(*Number, Notice_RecvMessageServer) error {
+func (UnimplementedNoticeServer) RecvMessage(*Service, Notice_RecvMessageServer) error {
 	return status.Errorf(codes.Unimplemented, "method RecvMessage not implemented")
 }
 func (UnimplementedNoticeServer) mustEmbedUnimplementedNoticeServer() {}
@@ -279,7 +279,7 @@ func _Notice_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(
 }
 
 func _Notice_RecvMessage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Number)
+	m := new(Service)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}

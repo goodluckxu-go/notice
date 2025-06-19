@@ -16,9 +16,13 @@ type NoticeServer struct {
 	pb.UnimplementedNoticeServer
 }
 
-func (c *NoticeServer) Register(context.Context, *emptypb.Empty) (*pb.Number, error) {
-	no := serList.add(&service{})
-	return &pb.Number{No: no}, nil
+func (c *NoticeServer) Register(context.Context, *emptypb.Empty) (*pb.Service, error) {
+	id := getUUID()
+	err := serList.add(id, &service{})
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Service{ServiceID: id}, nil
 }
 
 func (c *NoticeServer) AddClient(stream pb.Notice_AddClientServer) error {
@@ -30,20 +34,20 @@ func (c *NoticeServer) AddClient(stream pb.Notice_AddClientServer) error {
 			}
 			return err
 		}
-		if !serList.exists(req.No) {
+		if !serList.exists(req.GetServiceID()) {
 			return errors.New("server not found")
 		}
 		_ = cliList.Add(&Client{
-			No:       req.GetNo(),
-			ID:       req.GetId(),
-			Metadata: req.GetMetadata(),
+			ServiceID: req.GetServiceID(),
+			ID:        req.GetId(),
+			Metadata:  req.GetMetadata(),
 		})
 	}
 	return nil
 }
 
 func (c *NoticeServer) DelClient(ctx context.Context, req *pb.ClientReq) (*emptypb.Empty, error) {
-	if !serList.exists(req.GetNo()) {
+	if !serList.exists(req.GetServiceID()) {
 		return nil, errors.New("server not found")
 	}
 	cliList.Del(req.GetId())
@@ -52,32 +56,32 @@ func (c *NoticeServer) DelClient(ctx context.Context, req *pb.ClientReq) (*empty
 
 func (c *NoticeServer) SendMessage(ctx context.Context, req *pb.SendReq) (*emptypb.Empty, error) {
 	var cond condition.Condition
-	if err := condition.UnmarshalerCondition(req.Condition, &cond); err != nil {
+	if err := condition.UnmarshalerCondition(req.GetCondition(), &cond); err != nil {
 		return nil, err
 	}
-	clientList, err := cliList.Search(req.IdList, cond)
+	clientList, err := cliList.Search(req.GetIdList(), cond)
 	if err != nil {
 		return nil, err
 	}
-	for _, client := range clientList {
-		if ser := serList.get(client.No); ser != nil {
+	for serviceID, idList := range clientList {
+		if ser := serList.get(serviceID); ser != nil {
 			go ser.recv.Send(&pb.RecvResp{
-				Id:      client.ID,
-				Message: req.Message,
+				IdList:  idList,
+				Message: req.GetMessage(),
 			})
 		}
 	}
 	return nil, nil
 }
 
-func (c *NoticeServer) RecvMessage(req *pb.Number, stream pb.Notice_RecvMessageServer) error {
-	if !serList.exists(req.No) {
+func (c *NoticeServer) RecvMessage(req *pb.Service, stream pb.Notice_RecvMessageServer) error {
+	if !serList.exists(req.GetServiceID()) {
 		return fmt.Errorf("server not found")
 	}
-	serList.modify(req.No, stream)
+	serList.modify(req.GetServiceID(), stream)
 	select {
 	case <-stream.Context().Done():
-		serList.del(req.No)
+		serList.del(req.GetServiceID())
 	}
 	return nil
 }

@@ -5,7 +5,7 @@ option go_package = "./code";
 
 service Notice {
   // 注册到服务器中获取在服务器中的编号
-  rpc Register(google.protobuf.Empty) returns (Number) {}
+  rpc Register(google.protobuf.Empty) returns (Service) {}
   // 添加客户端
   rpc AddClient(stream ClientReq) returns (google.protobuf.Empty) {}
   // 删除客户端
@@ -13,15 +13,15 @@ service Notice {
   // 将消息发送到服务端
   rpc SendMessage(SendReq) returns (google.protobuf.Empty) {}
   // 接受服务端消息
-  rpc RecvMessage(Number) returns (stream RecvResp) {}
+  rpc RecvMessage(Service) returns (stream RecvResp) {}
 }
 
-message Number {
-  uint32 no = 1;
+message Service {
+  string serviceID = 1;
 }
 
 message ClientReq{
-  uint32 no = 1;
+  string serviceID = 1;
   string id = 2;
   map<string,Metadata> metadata = 3; // 元数据
 }
@@ -37,13 +37,13 @@ message Metadata {
 }
 
 message SendReq {
-  uint32 no = 1;
+  string serviceID = 1;
   bytes message = 2; // 发送消息
   repeated string idList = 3; // 发送id集合
   bytes condition = 4; // 条件
 }
 
 message RecvResp {
-  string id = 1;
+  repeated string idList = 1;
   bytes message = 2;
 }
