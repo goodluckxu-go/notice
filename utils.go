@@ -3,11 +3,12 @@ package notice
 import (
 	"github.com/gofrs/uuid"
 	pb "github.com/goodluckxu-go/notice/code"
+	"strings"
 )
 
 func getUUID() string {
 	v4, _ := uuid.NewV4()
-	return v4.String()
+	return strings.Replace(v4.String(), "-", "", -1)
 }
 
 func inArray[T comparable](val T, list []T) bool {
