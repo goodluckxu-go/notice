@@ -22,7 +22,7 @@ func (c *NoticeClient) AddClient(id string, metadata map[string]any) (err error)
 	for k, v := range metadata {
 		mData[k] = toMetadata(v)
 	}
-	err = cliList.Add(&Client{ID: id, ServiceID: c.serviceID, Metadata: mData})
+	err = cliList.add(&Client{ID: id, ServiceID: c.serviceID, Metadata: mData})
 	if err != nil {
 		return
 	}
@@ -39,7 +39,7 @@ func (c *NoticeClient) AddClient(id string, metadata map[string]any) (err error)
 }
 
 func (c *NoticeClient) DelClient(id string) (err error) {
-	cliList.Del(id)
+	cliList.del(id)
 	_, err = c.client.DelClient(context.Background(), &pb.ClientReq{ServiceID: c.serviceID, Id: id})
 	return
 }
@@ -106,7 +106,7 @@ func (c *NoticeClient) handleReady(isReady bool) {
 	if add, err = c.client.AddClient(context.Background()); err != nil {
 		return
 	}
-	for _, client := range cliList.List() {
+	for _, client := range cliList.list {
 		if client == nil {
 			continue
 		}

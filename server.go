@@ -37,7 +37,7 @@ func (c *NoticeServer) AddClient(stream pb.Notice_AddClientServer) error {
 		if !serList.exists(req.GetServiceID()) {
 			return errors.New("server not found")
 		}
-		_ = cliList.Add(&Client{
+		_ = cliList.add(&Client{
 			ServiceID: req.GetServiceID(),
 			ID:        req.GetId(),
 			Metadata:  req.GetMetadata(),
@@ -50,7 +50,7 @@ func (c *NoticeServer) DelClient(ctx context.Context, req *pb.ClientReq) (*empty
 	if !serList.exists(req.GetServiceID()) {
 		return nil, errors.New("server not found")
 	}
-	cliList.Del(req.GetId())
+	cliList.del(req.GetId())
 	return nil, nil
 }
 
@@ -59,7 +59,7 @@ func (c *NoticeServer) SendMessage(ctx context.Context, req *pb.SendReq) (*empty
 	if err := condition.UnmarshalerCondition(req.GetCondition(), &cond); err != nil {
 		return nil, err
 	}
-	clientList, err := cliList.Search(req.GetIdList(), cond)
+	clientList, err := cliList.search(req.GetIdList(), cond)
 	if err != nil {
 		return nil, err
 	}

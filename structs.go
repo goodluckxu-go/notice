@@ -64,7 +64,7 @@ func (s *services) del(id string) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	delete(s.m, id)
-	cliList.DelService(id)
+	cliList.delService(id)
 }
 
 type Client struct {
@@ -78,7 +78,7 @@ type clients struct {
 	mux  sync.RWMutex
 }
 
-func (c *clients) Add(cl *Client) error {
+func (c *clients) add(cl *Client) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	no := 0
@@ -91,13 +91,7 @@ func (c *clients) Add(cl *Client) error {
 	return nil
 }
 
-func (c *clients) List() []*Client {
-	c.mux.RLock()
-	defer c.mux.RUnlock()
-	return c.list
-}
-
-func (c *clients) Del(id string) {
+func (c *clients) del(id string) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	no := 0
@@ -111,15 +105,15 @@ func (c *clients) Del(id string) {
 	}
 }
 
-func (c *clients) DelService(serviceID string) {
+func (c *clients) delService(serviceID string) {
 	for _, cl := range c.list {
 		if cl.ServiceID == serviceID {
-			c.Del(cl.ID)
+			c.del(cl.ID)
 		}
 	}
 }
 
-func (c *clients) Search(idList []string, condition condition.Condition) (rs map[string][]string, err error) {
+func (c *clients) search(idList []string, condition condition.Condition) (rs map[string][]string, err error) {
 	rs = map[string][]string{}
 	for _, cl := range c.list {
 		if cl == nil {
