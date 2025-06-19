@@ -74,11 +74,9 @@ func (c *NoticeClient) RecvMessage(cb func(id string, message []byte)) error {
 						if err != nil {
 							break steamPos
 						}
-						go func(recv *pb.RecvResp) {
-							for _, id := range recv.IdList {
-								cb(id, recv.Message)
-							}
-						}(recv)
+						for _, id := range recv.IdList {
+							cb(id, recv.Message)
+						}
 					}
 				}
 			}
