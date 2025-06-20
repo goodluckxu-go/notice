@@ -66,7 +66,7 @@ func (c *NoticeServer) SendMessage(ctx context.Context, req *pb.SendReq) (*empty
 		if serviceID == req.GetServiceID() {
 			continue
 		}
-		if ser := serList.get(serviceID); ser != nil {
+		if ser := serList.get(serviceID); ser != nil && ser.recv != nil {
 			go ser.recv.Send(&pb.RecvResp{
 				IdList:  idList,
 				Message: req.GetMessage(),

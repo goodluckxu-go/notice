@@ -95,6 +95,13 @@ func (c *NoticeClient) handleReady(isReady bool) {
 	if err != nil {
 		return
 	}
+	// 接受消息
+	var steam pb.Notice_RecvMessageClient
+	steam, err = c.client.RecvMessage(context.Background(), &pb.Service{ServiceID: c.serviceID})
+	if err != nil {
+		return
+	}
+	go c.recvMessage(steam)
 	// 添加客户端
 	var add pb.Notice_AddClientClient
 	if add, err = c.client.AddClient(context.Background()); err != nil {
@@ -107,13 +114,6 @@ func (c *NoticeClient) handleReady(isReady bool) {
 		_ = add.Send(&pb.ClientReq{ServiceID: c.serviceID, Id: client.ID, Metadata: client.Metadata})
 	}
 	_, _ = add.CloseAndRecv()
-	// 接受消息
-	var steam pb.Notice_RecvMessageClient
-	steam, err = c.client.RecvMessage(context.Background(), &pb.Service{ServiceID: c.serviceID})
-	if err != nil {
-		return
-	}
-	go c.recvMessage(steam)
 }
 
 func (c *NoticeClient) checkStatus() {
