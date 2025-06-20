@@ -32,7 +32,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NoticeClient interface {
 	// 注册到服务器中获取在服务器中的编号
-	Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Service, error)
+	Register(ctx context.Context, in *Service, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// 添加客户端
 	AddClient(ctx context.Context, opts ...grpc.CallOption) (Notice_AddClientClient, error)
 	// 删除客户端
@@ -51,9 +51,9 @@ func NewNoticeClient(cc grpc.ClientConnInterface) NoticeClient {
 	return &noticeClient{cc}
 }
 
-func (c *noticeClient) Register(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Service, error) {
+func (c *noticeClient) Register(ctx context.Context, in *Service, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Service)
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Notice_Register_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func (x *noticeRecvMessageClient) Recv() (*RecvResp, error) {
 // for forward compatibility
 type NoticeServer interface {
 	// 注册到服务器中获取在服务器中的编号
-	Register(context.Context, *emptypb.Empty) (*Service, error)
+	Register(context.Context, *Service) (*emptypb.Empty, error)
 	// 添加客户端
 	AddClient(Notice_AddClientServer) error
 	// 删除客户端
@@ -170,7 +170,7 @@ type NoticeServer interface {
 type UnimplementedNoticeServer struct {
 }
 
-func (UnimplementedNoticeServer) Register(context.Context, *emptypb.Empty) (*Service, error) {
+func (UnimplementedNoticeServer) Register(context.Context, *Service) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
 func (UnimplementedNoticeServer) AddClient(Notice_AddClientServer) error {
@@ -199,7 +199,7 @@ func RegisterNoticeServer(s grpc.ServiceRegistrar, srv NoticeServer) {
 }
 
 func _Notice_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(Service)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func _Notice_Register_Handler(srv interface{}, ctx context.Context, dec func(int
 		FullMethod: Notice_Register_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NoticeServer).Register(ctx, req.(*emptypb.Empty))
+		return srv.(NoticeServer).Register(ctx, req.(*Service))
 	}
 	return interceptor(ctx, in, info, handler)
 }

@@ -8,6 +8,32 @@ import (
 	"sync"
 )
 
+type sendMsg struct {
+	id      string
+	message []byte
+}
+
+type sendMsgs struct {
+	ls  []sendMsg
+	mux sync.Mutex
+}
+
+func (s *sendMsgs) add(message []byte, ids ...string) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	for _, id := range ids {
+		s.ls = append(s.ls, sendMsg{id, message})
+	}
+}
+
+func (s *sendMsgs) list() []sendMsg {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	list := s.ls
+	s.ls = s.ls[0:0]
+	return list
+}
+
 type service struct {
 	recv code.Notice_RecvMessageServer
 }

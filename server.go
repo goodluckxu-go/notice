@@ -16,13 +16,12 @@ type NoticeServer struct {
 	pb.UnimplementedNoticeServer
 }
 
-func (c *NoticeServer) Register(context.Context, *emptypb.Empty) (*pb.Service, error) {
-	id := getUUID()
-	err := serList.add(id, &service{})
+func (c *NoticeServer) Register(ctx context.Context, req *pb.Service) (*emptypb.Empty, error) {
+	err := serList.add(req.GetServiceID(), &service{})
 	if err != nil {
 		return nil, err
 	}
-	return &pb.Service{ServiceID: id}, nil
+	return nil, nil
 }
 
 func (c *NoticeServer) AddClient(stream pb.Notice_AddClientServer) error {
@@ -64,6 +63,9 @@ func (c *NoticeServer) SendMessage(ctx context.Context, req *pb.SendReq) (*empty
 		return nil, err
 	}
 	for serviceID, idList := range clientList {
+		if serviceID == req.GetServiceID() {
+			continue
+		}
 		if ser := serList.get(serviceID); ser != nil {
 			go ser.recv.Send(&pb.RecvResp{
 				IdList:  idList,

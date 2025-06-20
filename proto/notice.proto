@@ -5,7 +5,7 @@ option go_package = "./code";
 
 service Notice {
   // 注册到服务器中获取在服务器中的编号
-  rpc Register(google.protobuf.Empty) returns (Service) {}
+  rpc Register(Service) returns (google.protobuf.Empty) {}
   // 添加客户端
   rpc AddClient(stream ClientReq) returns (google.protobuf.Empty) {}
   // 删除客户端
